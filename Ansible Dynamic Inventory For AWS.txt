@@ -1,0 +1,79 @@
+##---------------------------------------
+##  Ansible Dynamic Inventory for AWS  ##
+##---------------------------------------
+
+#Prerequisites
+#1. Ansible
+#2. AWS EC2 instance with AWS Linux 2 and internet
+#3. IAM role with admin access
+#4. Python, boto
+
+## Create an AWS EC2 instance with AWS Linux 2 OS and attach the IAM role with admin access
+## Install and update packages
+sudo yum update -y
+sudo yum install jq -y
+sudo amazon-linux-extras install ansible2 -y
+sudo yum install python-pip -y
+pip install --user boto
+
+## Get ec2.py and ec2.ini files
+wget https://raw.githubusercontent.com/ansible/ansible/devel/contrib/inventory/ec2.py
+wget https://raw.githubusercontent.com/ansible/ansible/devel/contrib/inventory/ec2.ini
+
+## Enable execution
+chmod +x ec2.py ec2.ini
+
+## Move the files to ansible directory
+sudo mv ec2.py /etc/ansible/
+sudo mv ec2.ini /etc/ansible/
+
+## Set environment variables
+export ANSIBLE_HOSTS=/etc/ansible/ec2.py && export EC2_INI_PATH=/etc/ansible/ec2.ini
+
+## Create a script to assume access through IAM role
+vi assume_role.sh
+----------------------
+#!/bin/bash
+curl http://169.254.169.254/latest/meta-data/iam/security-credentials/adminrole > cred.json
+export AWS_ACCESS_KEY_ID=$(cat cred.json| jq .AccessKeyId | xargs)
+export AWS_SECRET_ACCESS_KEY=$(cat cred.json| jq .SecretAccessKey| xargs)
+export AWS_SESSION_TOKEN=$(cat cred.json| jq .Token| xargs)
+export AWS_EXPIRATION=$(cat cred.json| jq .Credentials.Expiration| xargs)
+rm -f cred.json
+----------------------
+:wq
+
+## Change execution mode and execute
+chmod +x assume_role.sh
+source assume_role.sh
+
+## Configure ssh
+ssh-agent bash
+ssh-add ~/.ssh/debjeet-KP.pem #replace debjeet-KP.pem with your key-pair
+
+## Test if dynamic inventory is working
+ansible -m ping all
+ansible -m ping tag_Name_DevOps #tag_KEY_VALUE
+
+#Note: Deprecation warnings can be disabled by setting deprecation_warnings=False in ansible.cfg.
+
+## Get inventory details
+ansible-inventory --list
+
+## Dynamic inventory is stored in local tmp directory .ansible/tmp/
+ls -la .ansible/tmp/
+#cat .ansible/tmp/ansible-ec2-ASIAUC45M2HSHCXENJLG-811080.index
+#cat .ansible/tmp/ansible-ec2-ASIAUC45M2HSHCXENJLG-811080.cache
+
+## Create a new EC2 instance with same key-pair and tag Name: Target1
+
+## Test if dynamic inventory is working
+ansible -m ping all
+ansible -m ping tag_Name_Target1 #syntax is tag_KEY_VALUE
+
+## Check dynamic inventory
+ansible-inventory --list
+
+#cat .ansible/tmp/ansible-ec2-ASIAUC45M2HSHCXENJLG-811080.index
+
+## Cleanup: Remove two ec2 instances
