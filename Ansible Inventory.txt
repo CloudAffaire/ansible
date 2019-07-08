@@ -1,0 +1,125 @@
+##-----------------------
+## Ansible: Inventory ##
+##-----------------------
+## Systems used for this demo
+# hostnames ip           os       role
+# --------- ------------ -------- ------------
+# system1   192.168.0.10 Centos 7 Control Node
+# system2   192.168.0.20 Centos 7 Managed Node One
+# system3   192.168.0.30 Centos 7 Managed Node Two
+
+#########################
+##  Default Inventory  ##
+#########################
+
+## Default inventory location
+sudo cat /etc/ansible/hosts
+
+## Add new entry to the host file
+sudo vi /etc/ansible/hosts
+-------------------
+[remote]
+192.168.0.20
+-------------------
+:wq
+
+## list all inventory
+ansible-inventory --list
+
+## Test if inventory is working
+ansible remote -m shell -a "hostname"
+
+########################
+##  Custom Inventory  ##
+########################
+## You can specify custom inventory file using the -i <path> option on the command line.
+## Create custom inventory files
+vi myinventory1
+-------------------
+[remote]
+192.168.0.20
+-------------------
+:wq
+
+vi myinventory2
+-------------------
+[remote]
+192.168.0.30
+-------------------
+:wq
+
+## Use custom inventory files
+ansible remote -m shell -a "hostname" -i /home/debjeet/myinventory1 -i /home/debjeet/myinventory2
+
+############################
+##  Groups and subgroups  ##
+############################
+## Hosts in the inventory can be classified in groups and subgroups.
+## Single host can be member of multiple groups and sub-groups
+## Create groups and subgroups in inventory
+
+sudo vi /etc/ansible/hosts
+--------------------
+[localserver]
+192.168.0.10
+[remoteserver]
+192.168.0.20
+192.168.0.30
+[systems:children]
+localserver
+remoteserver
+[prod:children]
+systems
+--------------------
+:wq
+
+## Test by executing an ad-hoc command
+## Will be executed in all three systems
+ansible -m command -a "df -h" prod
+
+###############
+##  Pattern  ##
+###############
+
+## Inventory also supports pattern, you can combine multiple host with similar pattern
+## pattern: [start:end:gap]
+sudo vi /etc/ansible/hosts
+-------------------
+[systems]
+192.168.0.[10:30:10]
+-------------------
+:wq
+
+## Test the inventory by executing an ad-hoc command
+## Will be executed iagainst 192.168.0.10, 192.168.0.20 and 192.168.0.30
+ansible -m command -a "df -h" systems
+
+###################################
+##  Host with non standard port  ##
+###################################
+## Ansible supports non-standrd port <host>:<port>
+## If u want to try, on system2 (192.168.0.20), Open /etc/ssh/sshd_config file and
+## look for line Port 22 and change line to Port 2222. Restart sshd.
+sudo vi /etc/ansible/hosts
+--------------------
+[remote]
+192.168.0.20:2222
+--------------------
+:wq
+
+## Test the inventory by executing an ad-hoc command
+ansible -m command -a "df -h" remote
+
+#########################################
+##  Change host connection properties  ##
+#########################################
+## Apart from port, ansible also supports multiple host connaction argument
+## For complete argument list https://docs.ansible.com/ansible/latest/user_guide/intro_inventory.html
+sudo vi /etc/ansible/hosts
+-------------------
+remote ansible_host=192.168.0.20 ansible_port=2222 ansible_connection=ssh ansible_user=debjeet
+-------------------
+:wq
+
+## Execute an ad-hoc command to test
+ansible -m command -a "df -h" remote
