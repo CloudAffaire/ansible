@@ -1,0 +1,89 @@
+##--------------------------
+## Ansible: Installation ##
+##--------------------------
+## We are going to use VirtualBox VM and AWS EC2 instances for most of the demo.
+## Below is the configuration for our VirtualBox VM’s
+# hostnames ip           os       role
+# --------- ------------ -------- ------------
+# system1   192.168.0.10 Centos 7 Control Node
+# system2   192.168.0.20 Centos 7 Managed Node One
+# system3   192.168.0.30 Centos 7 Managed Node Two
+
+## Create an user for ansible in all the systems
+useradd debjeet
+passwd debjeet
+passwd -x -l debjeet
+
+# Login using above user
+
+## Install ansible in Control Node (192.168.0.10)
+sudo yum install ansible -y
+
+#to install in amazon linux: sudo amazon-linux-extras install ansible2
+
+## Check ansible version
+ansible --version
+
+## Run your 1st ansible command
+ansible localhost -m shell -a "echo hello $USER from Ansible"
+
+## Check package for paths
+rpm -qa | grep ansible #copy package name
+rpm -ql ansible-2.4.2.0-2.el7.noarch | more #replace package name
+
+#config file: /etc/ansible/ansible.cfg
+#inventory: /etc/ansible/hosts
+#role: /etc/ansible/roles
+#executable: /usr/bin/ansible
+#modules: /usr/lib/python2.7/site-packages/ansible/
+
+## View ansible configuration details
+ansible-config view
+
+## Get help
+ansible --help
+ansible-doc --list
+ansible-doc <module> #ansible-doc ping will return help for ping module
+
+##############################################
+##  Configure Ansible for remote execution  ##
+##############################################
+
+## Update your Ansible inventory
+sudo vi /etc/ansible/hosts
+--------------
+[local]
+192.168.0.10
+[appserver]
+192.168.0.20
+[dbserver]
+192.168.0.30
+[remote]
+192.168.0.20
+192.168.0.30
+-------------
+:wq
+
+## Create ssh key in the control node
+## Your public key has been saved in /home/debjeet/.ssh/id_rsa.pub
+## hit enter three times
+ssh-keygen -t rsa -b 4096 -C "debjeet@cloudaffaire.com"
+
+## Copy ssh key in all nodes
+## Provide password for the user that has been created in previous step when prompted
+ssh-copy-id debjeet@192.168.0.10
+ssh-copy-id debjeet@192.168.0.20
+ssh-copy-id debjeet@192.168.0.30
+
+## Check if keys are working
+## On control node (192.168.0.10)
+## Make sure host file has proper entry /etc/hosts
+ssh system2
+exit
+ssh system3
+exit
+
+## Execute ad-hoc commands against managed nodes
+ansible remote -m shell -a "hostname"
+ansible all -m ping #all command include all systems defined in inventory file
+ansible -m command -a "df -h" remote
