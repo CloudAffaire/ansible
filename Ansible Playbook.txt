@@ -1,0 +1,173 @@
+##------------------------------------
+##  Ansible Playbook: Introduction  ##
+##------------------------------------
+
+##  Systems used for this demo
+#  hostnames     ip              os            role
+#  ---------     ------------    --------      ------------
+#  system1       192.168.0.10    Centos 7      Control Node
+#  system2       192.168.0.20    Centos 7      Managed Node One
+#  system3       192.168.0.30    Centos 7      Managed Node Two
+
+##  Create the inventory
+sudo vi /etc/ansible/hosts
+--------------------
+[localserver]
+192.168.0.10
+[appserver]
+192.168.0.20
+[dbserver]
+192.168.0.30
+[remoteserver:children]
+appserver
+dbserver
+[systems:children]
+localserver
+remoteserver
+--------------------
+:wq
+
+##  Create a playbook file
+mkdir my_playbook 
+vi my_playbook/myplaybook1.yml
+--------------------------
+---
+- hosts: remoteserver
+  remote_user: debjeet
+  tasks:
+      - name: test connection
+        ping:
+...
+--------------------------
+:wq
+cd
+
+##  Varify playbook syntax
+sudo yum install epel-release -y
+sudo yum install python-pip -y
+sudo pip install ansible-lint
+ansible-lint myplaybook1.yml #will return error if any syntax error
+#or
+ansible-playbook my_playbook/myplaybook1.yml --syntax-check
+
+##  Execute the playbook
+ansible-playbook my_playbook/myplaybook1.yml
+
+##  next install httpd in appserver through playbook
+##  check if httpd already installed in system3 (192.168.0.30)
+ssh system2
+sudo systemctl status httpd
+exit
+
+##  Create playbook file for httpd installation
+vi my_playbook/myplaybook2.yml
+--------------------------
+---
+- hosts: appserver
+  remote_user: debjeet
+  become: yes
+  become_method: sudo
+  tasks:
+  - name: installs httpd
+    yum:
+      name: httpd
+      state: latest
+  - name: start httpd service
+    service:
+      name: httpd
+      state: started
+...
+--------------------------
+:wq
+
+##  Execute the playbook
+ansible-playbook my_playbook/myplaybook2.yml
+
+##  Check if httpd installed in system2 (192.168.0.20)
+ssh system2
+sudo systemctl status httpd
+exit
+
+##  Multiple play in a single playbook
+##  Create playbook file 
+vi my_playbook/myplaybook3.yml
+--------------------------
+---
+- hosts: appserver
+  remote_user: debjeet
+  become: yes
+  become_method: sudo
+  tasks:
+  - name: installs httpd
+    yum:
+      name: httpd
+      state: latest
+  - name: start httpd service
+    service:
+      name: httpd
+      state: started
+- hosts: dbserver
+  remote_user: debjeet
+  become: yes
+  become_method: sudo
+  tasks:
+  - name: installs mysql repo
+    yum: 
+      name: http://dev.mysql.com/get/mysql57-community-release-el7-8.noarch.rpm 
+      state: latest
+  - name: installs mysql
+    yum:
+      name: mysql-community-server
+      state: latest
+  - name: start mysqld service
+    service:
+      name: mysqld
+      state: started
+...
+--------------------------
+:wq
+
+##  Execute the playbook
+ansible-playbook my_playbook/myplaybook3.yml
+
+##  Handlers, notify and listen
+##  Stops httpd using task and send a notify to handler to start httpd again
+##  Create playbook file 
+vi my_playbook/myplaybook4.yml
+--------------------------
+---
+- hosts: appserver
+  remote_user: debjeet
+  become: yes
+  become_method: sudo
+  handlers:
+  - name: start httpd
+    service:
+      name: httpd
+      state: started
+    listen: "httpd stopped"
+  tasks:
+  - name: enable httpd
+    service:
+      name: httpd
+      enabled: yes
+  - name: stop httpd
+    service:
+      name: httpd
+      state: stopped
+    notify: "httpd stopped"
+...
+--------------------------
+:wq
+
+##  Execute the playbook
+ansible-playbook my_playbook/myplaybook4.yml
+
+##  Cleanup
+ssh system2
+sudo yum remove httpd -y
+exit
+ssh system3
+sudo yum remove mysql -y
+exit
+rm -r my_playbook
